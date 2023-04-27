@@ -1,0 +1,60 @@
+version: '1.0'
+
+services:
+  wbl0:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      APP_DSN: postgres://postgres:postgres@db:5432/postgres?sslmode=disable
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+      - nats
+      - cache
+    networks:
+      - backend
+  db:
+    image: postgres:13-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    networks:
+      - backend
+  nats:
+    image: nats-streaming:latest
+    entrypoint: 
+      - /nats-streaming-server
+      - -cid
+      - amethyst-cluster
+    expose:
+      - 4222
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+      - "6222:6222"
+    restart: always
+    networks:
+      - backend
+  cache:
+    image: redis:6.2-alpine
+    restart: always
+    ports:
+      - '6379:6379'
+    command: redis-server --save 20 1 --loglevel warning
+    volumes: 
+      - cache:/data
+    networks:
+      - backend
+volumes:
+  cache:
+    driver: local
+networks:
+  backend:
+    driver: bridge
