@@ -6,6 +6,7 @@ import (
 
 	"github.com/AlexeyBazhin/wbL0/internal/api/server"
 	"github.com/AlexeyBazhin/wbL0/internal/api/stanListener"
+	"github.com/AlexeyBazhin/wbL0/internal/cache"
 	"github.com/AlexeyBazhin/wbL0/internal/db"
 	"github.com/AlexeyBazhin/wbL0/internal/domain/service"
 	"github.com/AlexeyBazhin/wbL0/internal/repository"
@@ -63,17 +64,16 @@ func main() {
 	}
 
 	repo := repository.NewRepository(connectedDB, sugaredLogger)
-	svc := service.NewService(repo)
+	cache := cache.NewCache(redisClient)
+	svc := service.NewService(repo, cache)
 
 	errGroup, egCtx := errgroup.WithContext(ctx)
 	errGroup.Go(
 		server.New(
-			egCtx,
+			egCtx, //server.WithContext(egCtx),
 			server.WithService(svc),
 			server.WithBindAddress(cfg.BindAddr),
 			server.WithLogger(sugaredLogger),
-			server.WithRedisClient(redisClient),
-			//server.WithContext(egCtx),
 		).Run())
 
 	stanConn, err := stan.Connect("amethyst-cluster", "wbL0", stan.NatsURL("http://nats:4222"))
@@ -90,7 +90,6 @@ func main() {
 			stanListener.WithSubject("models"),
 			stanListener.WithContext(egCtx),
 			stanListener.WithLogger(sugaredLogger),
-			stanListener.WithRedisClient(redisClient),
 		).Run())
 
 	// errGroup.Go(

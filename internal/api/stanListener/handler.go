@@ -80,21 +80,21 @@ func (stanListener *StanListener) stanHandler(msg *stan.Msg) {
 	}
 	stanListener.logger.Info("[stan-listener] DATA SAVED TO PG")
 
-	stanListener.PushToRedis(completeModel)
+	stanListener.PushToCache(completeModel)
 }
 
-func (stanListener *StanListener) PushToRedis(completeModel *model.CompleteOrder) {
-	modelJSON := api.MakeJSONModel(completeModel)
-	modelByte, err := json.Marshal(modelJSON)
+func (stanListener *StanListener) PushToCache(completeOrder *model.CompleteOrder) {
+	modelJSON := api.MakeJSONModel(completeOrder)
+	modelByte, err := json.MarshalIndent(modelJSON, "", " ")
 	if err != nil {
 		stanListener.logger.Errorf("[stan-listener] failed to marshal modelJSON")
 		return
 	}
-	if err := stanListener.redisClient.
-		Set(stanListener.ctx, completeModel.Order.Id.String(), modelByte, 0).
-		Err(); err != nil {
-		stanListener.logger.Errorf("[stan-listener] failed to save in Redis")
+	if err := stanListener.svc.PushToCache(
+		stanListener.ctx, completeOrder.Order.Id, modelByte,
+	); err != nil {
+		stanListener.logger.Errorf("[stan-listener] failed to cache data")
 		return
 	}
-	stanListener.logger.Info("[stan-listener] DATA SAVED TO REDIS")
+	stanListener.logger.Info("[stan-listener] DATA SAVED TO CACHE")
 }

@@ -15,4 +15,8 @@ type (
 		InsertPayment(ctx context.Context, order *model.Payment) error
 		InsertItem(ctx context.Context, order *model.Item) error
 	}
+	Cache interface {
+		PushToCache(ctx context.Context, orderUidStr string, data []byte) error
+		PullFromCache(ctx context.Context, orderUidStr string) ([]byte, error)
+	}
 )

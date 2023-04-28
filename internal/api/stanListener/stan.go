@@ -7,18 +7,16 @@ import (
 	"github.com/AlexeyBazhin/wbL0/internal/domain/model"
 	"github.com/google/uuid"
 	"github.com/nats-io/stan.go"
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
 type (
 	StanListener struct {
-		svc         StanService
-		stanConn    stan.Conn
-		subject     string
-		ctx         context.Context
-		logger      *zap.SugaredLogger
-		redisClient *redis.Client
+		svc      StanService
+		stanConn stan.Conn
+		subject  string
+		ctx      context.Context
+		logger   *zap.SugaredLogger
 	}
 	StanService interface {
 		CreateOrder(ctx context.Context, order api.OrderJSON) (*model.Order, error)
@@ -26,6 +24,8 @@ type (
 		CreatePayment(ctx context.Context, payment api.PaymentJSON, orderUid uuid.UUID) (*model.Payment, error)
 		CreateItem(ctx context.Context, item api.ItemJSON, orderUid uuid.UUID) (*model.Item, error)
 		InsertCompleteOrder(ctx context.Context, completeModels *model.CompleteOrder) error
+
+		PushToCache(ctx context.Context, orderUid uuid.UUID, data []byte) error
 	}
 	OptionFunc func(apiStan *StanListener)
 )
@@ -52,11 +52,6 @@ func (stanListener *StanListener) Run() func() error {
 		return nil
 	}
 
-}
-func WithRedisClient(redisClient *redis.Client) OptionFunc {
-	return func(stanListener *StanListener) {
-		stanListener.redisClient = redisClient
-	}
 }
 func WithLogger(logger *zap.SugaredLogger) OptionFunc {
 	return func(stanListener *StanListener) {

@@ -3,11 +3,13 @@ package service
 import "github.com/AlexeyBazhin/wbL0/internal/domain"
 
 type service struct {
-	repo domain.Repository
+	repo  domain.Repository
+	cache domain.Cache
 }
 
-func NewService(store domain.Repository) *service {
+func NewService(store domain.Repository, cache domain.Cache) *service {
 	return &service{
-		repo: store,
+		repo:  store,
+		cache: cache,
 	}
 }

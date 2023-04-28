@@ -32,6 +32,8 @@ var (
 )
 
 func (server *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
+	server.logger.Infof("[http-server] request: %v", r.URL.Path)
+
 	if r.Method == "GET" {
 		w.Write(searchFormTmpl)
 		return
@@ -46,6 +48,8 @@ func (server *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 
 func (server *Server) orderHandler(w http.ResponseWriter, r *http.Request) {
 	server.logger.Infof("[http-server] request: %v", r.URL.Path)
+	w.Header().Set("Content-Type", "application/json")
+
 	vars := mux.Vars(r)
 	orderUid, err := uuid.Parse(vars["order-uid"])
 	if err != nil {
@@ -54,40 +58,58 @@ func (server *Server) orderHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	if modelJSON, err := server.redisClient.Get(server.ctx, orderUid.String()).Bytes(); err != nil {
+	if byteFromCache, err := server.svc.PullFromCache(server.ctx, orderUid); err != nil {
 		server.logger.Errorf("[http-server] get from Redis error: %w", err)
 	} else {
-		w.Write(modelJSON)
+		// var modelJSON api.ModelJSON
+		// if err := json.Unmarshal(byteFromCache, &modelJSON); err != nil {
+		// 	fmt.Println(fmt.Errorf("failed to unmarshal json data: %s", err.Error()))
+		// }
+		// modelByte, _ := json.MarshalIndent(modelJSON, "", " ")
+		// w.Write(modelByte)
+		w.Write(byteFromCache) //раньше во время пуша в рэдис внутри stanListener не применялся MarshalIndent - поэтому нужен был закомментированный выше код
+
 		server.logger.Info("[http-server] successful get from Redis")
 		return
 	}
+
+	//если не удалось получить из кэша
 	completeOrder, err := server.svc.GetOrderById(server.ctx, orderUid)
 	if err != nil {
-		fmt.Println(err)
 		json.NewEncoder(w).Encode(&api.ErrorJSON{
 			Err: err.Error(),
 		})
 		return
 	}
 	modelJSON := api.MakeJSONModel(completeOrder)
-	if err := json.NewEncoder(w).Encode(&modelJSON); err != nil {
-		fmt.Println(err)
+	if err != nil {
 		json.NewEncoder(w).Encode(&api.ErrorJSON{
 			Err: err.Error(),
 		})
 		return
 	}
 	server.logger.Info("[http-server] successful get from PG")
+
+	if modelByte, err := json.MarshalIndent(modelJSON, "", " "); err != nil {
+		json.NewEncoder(w).Encode(&api.ErrorJSON{
+			Err: err.Error(),
+		})
+		return
+	} else {
+		w.Write(modelByte)
+	}
+
+	//полученные данные нужно записать в кэш
+	modelByte, err := json.MarshalIndent(modelJSON, "", " ")
+	if err != nil {
+		server.logger.Errorf("[http-server] failed to marshal modelJSON: %w", err)
+		return
+	}
+	if err := server.svc.PushToCache(
+		server.ctx, completeOrder.Order.Id, modelByte,
+	); err != nil {
+		server.logger.Errorf("[http-server] failed to cache data: %w", err)
+		return
+	}
+	server.logger.Info("[stan-listener] DATA SAVED TO CACHE")
 }
-
-// func (server *Server) StanListener(msg *stan.Msg) {
-// 	model := &model.Model{}
-// 	if err := json.Unmarshal(msg.Data, model); err != nil {
-// 		server.logger.Error("[http-server] cannot unmarshal json model: ", zap.Error(err))
-// 	}
-
-// 	if order, err := server.createOrderService(model.Order); err != nil {
-// 		server.logger.Error("[http-server] cannot create order: ", zap.Error(err))
-// 	}
-
-// }

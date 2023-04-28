@@ -9,21 +9,22 @@ import (
 	"github.com/AlexeyBazhin/wbL0/internal/domain/model"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
 
 type (
 	Server struct {
-		base        *http.Server
-		svc         ServerService
-		logger      *zap.SugaredLogger
-		redisClient *redis.Client
-		ctx         context.Context
-		bindAddr    string
+		base     *http.Server
+		svc      ServerService
+		logger   *zap.SugaredLogger
+		ctx      context.Context
+		bindAddr string
 	}
 	ServerService interface {
 		GetOrderById(ctx context.Context, orderUid uuid.UUID) (*model.CompleteOrder, error)
+
+		PushToCache(ctx context.Context, orderUid uuid.UUID, data []byte) error
+		PullFromCache(ctx context.Context, orderUid uuid.UUID) ([]byte, error)
 	}
 	OptionFunc func(s *Server)
 )
@@ -53,18 +54,13 @@ func New(ctx context.Context, opts ...OptionFunc) *Server {
 }
 
 func (server *Server) Run() func() error {
-	server.logger.Info("[http-server] started")
-	server.logger.Infof("listening on %v", server.bindAddr)
+	server.logger.Infof("[http-server] started and listening on %v", server.bindAddr)
 	return func() error {
 		defer server.logger.Error("[http-server] stopped")
 		return server.base.ListenAndServe()
 	}
 }
-func WithRedisClient(redisClient *redis.Client) OptionFunc {
-	return func(server *Server) {
-		server.redisClient = redisClient
-	}
-}
+
 func WithBindAddress(bindAddr string) OptionFunc {
 	return func(s *Server) {
 		s.bindAddr = bindAddr
