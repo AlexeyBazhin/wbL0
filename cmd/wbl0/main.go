@@ -37,7 +37,7 @@ func main() {
 	defer ctxCancel()
 
 	if logger, err = zap.NewDevelopment(); err != nil {
-		panic(fmt.Errorf("не удалось запустить логгер: %w", err))
+		panic(fmt.Errorf("[main] Unable to start logger: %w", err))
 	}
 	sugaredLogger := logger.Sugar()
 
@@ -47,9 +47,9 @@ func main() {
 
 	connectedDB, err := db.ConnectPostgreSQL(ctx, cfg.DSN)
 	if err != nil {
-		panic(fmt.Errorf("невозможно открыть соединение с базой данных: %w", err))
+		panic(fmt.Errorf("[main] Unable to open connection with DB: %w", err))
 	}
-	sugaredLogger.Info("[main] Успешное подключение к БД")
+	sugaredLogger.Info("[main] Successful connection to DB")
 
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     "cache:6379",
@@ -57,9 +57,9 @@ func main() {
 		DB:       0,
 	})
 	if pong, err := redisClient.Ping(ctx).Result(); err != nil {
-		panic(fmt.Errorf("невозможно открыть соединение с Redis: %w", err))
+		panic(fmt.Errorf("[main] Unable to open connection with Redis: %w", err))
 	} else {
-		sugaredLogger.Infof("[main] Успешное подключение к Redis %v", pong)
+		sugaredLogger.Infof("[main] Successful connection to Redis %v", pong)
 	}
 
 	repo := repository.NewRepository(connectedDB, sugaredLogger)
@@ -67,7 +67,8 @@ func main() {
 
 	errGroup, egCtx := errgroup.WithContext(ctx)
 	errGroup.Go(
-		server.New(egCtx,
+		server.New(
+			egCtx,
 			server.WithService(svc),
 			server.WithBindAddress(cfg.BindAddr),
 			server.WithLogger(sugaredLogger),
@@ -77,9 +78,9 @@ func main() {
 
 	stanConn, err := stan.Connect("amethyst-cluster", "wbL0", stan.NatsURL("http://nats:4222"))
 	if err != nil {
-		panic(fmt.Errorf("невозможно подключиться к брокеру: %w", err))
+		panic(fmt.Errorf("[main] Unable to open connection with message broker nats-streaming: %w", err))
 	}
-	sugaredLogger.Info("[main] Успешное подключение к брокеру")
+	sugaredLogger.Info("[main] Successful connection to nats-streaming ")
 	defer stanConn.Close()
 
 	errGroup.Go(
