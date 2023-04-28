@@ -24,5 +24,3 @@ test task L0 for wildberries
 В качестве кэша использовался Redis.
 
 Реализована clean архитектура. На уровне api имеется 2 параллельно работающие сущности (http server и stanListener). Они вызываются с помощью errGroup в main, а также разделяют общий service (и следовательно repository).
-
-# "Субтитры" к видео
